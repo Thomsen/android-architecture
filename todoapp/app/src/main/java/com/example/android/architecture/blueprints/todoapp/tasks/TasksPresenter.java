@@ -24,15 +24,13 @@ import com.example.android.architecture.blueprints.todoapp.data.Task;
 import com.example.android.architecture.blueprints.todoapp.data.source.TasksDataSource;
 import com.example.android.architecture.blueprints.todoapp.data.source.TasksRepository;
 import com.example.android.architecture.blueprints.todoapp.util.EspressoIdlingResource;
+import com.example.android.architecture.blueprints.todoapp.util.schedulers.BaseSchedulerProvider;
 
 import java.util.List;
 
 import rx.Observable;
-import rx.Observer;
 import rx.Subscription;
-import rx.android.schedulers.AndroidSchedulers;
 import rx.functions.Func1;
-import rx.schedulers.Schedulers;
 import rx.subscriptions.CompositeSubscription;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -43,18 +41,30 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public class TasksPresenter implements TasksContract.Presenter {
 
+    @NonNull
     private final TasksRepository mTasksRepository;
 
+    @NonNull
     private final TasksContract.View mTasksView;
 
+    @NonNull
+    private final BaseSchedulerProvider mSchedulerProvider;
+
+    @NonNull
     private TasksFilterType mCurrentFiltering = TasksFilterType.ALL_TASKS;
 
     private boolean mFirstLoad = true;
+
+    @NonNull
     private CompositeSubscription mSubscriptions;
 
-    public TasksPresenter(@NonNull TasksRepository tasksRepository, @NonNull TasksContract.View tasksView) {
+    public TasksPresenter(@NonNull TasksRepository tasksRepository,
+                          @NonNull TasksContract.View tasksView,
+                          @NonNull BaseSchedulerProvider schedulerProvider) {
         mTasksRepository = checkNotNull(tasksRepository, "tasksRepository cannot be null");
         mTasksView = checkNotNull(tasksView, "tasksView cannot be null!");
+        mSchedulerProvider = checkNotNull(schedulerProvider, "schedulerProvider cannot be null");
+
         mSubscriptions = new CompositeSubscription();
         mTasksView.setPresenter(this);
     }
@@ -88,7 +98,7 @@ public class TasksPresenter implements TasksContract.Presenter {
      * @param forceUpdate   Pass in true to refresh the data in the {@link TasksDataSource}
      * @param showLoadingUI Pass in true to display a loading icon in the UI
      */
-    private void loadTasks(boolean forceUpdate, final boolean showLoadingUI) {
+    private void loadTasks(final boolean forceUpdate, final boolean showLoadingUI) {
         if (showLoadingUI) {
             mTasksView.setLoadingIndicator(true);
         }
@@ -109,43 +119,36 @@ public class TasksPresenter implements TasksContract.Presenter {
                         return Observable.from(tasks);
                     }
                 })
-                .filter(new Func1<Task, Boolean>() {
-                    @Override
-                    public Boolean call(Task task) {
-                        switch (mCurrentFiltering) {
-                            case ACTIVE_TASKS:
-                                return task.isActive();
-                            case COMPLETED_TASKS:
-                                return task.isCompleted();
-                            case ALL_TASKS:
-                            default:
-                                return true;
-                        }
+                .filter(task -> {
+                    switch (mCurrentFiltering) {
+                        case ACTIVE_TASKS:
+                            return task.isActive();
+                        case COMPLETED_TASKS:
+                            return task.isCompleted();
+                        case ALL_TASKS:
+                        default:
+                            return true;
                     }
                 })
                 .toList()
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new Observer<List<Task>>() {
-                    @Override
-                    public void onCompleted() {
-                        mTasksView.setLoadingIndicator(false);
+                .subscribeOn(mSchedulerProvider.computation())
+                .observeOn(mSchedulerProvider.ui())
+                .doOnTerminate(() -> {
+                    if (!EspressoIdlingResource.getIdlingResource().isIdleNow()) {
+                        EspressoIdlingResource.decrement(); // Set app as idle.
                     }
-
-                    @Override
-                    public void onError(Throwable e) {
-                        mTasksView.showLoadingTasksError();
-                    }
-
-                    @Override
-                    public void onNext(List<Task> tasks) {
-                        processTasks(tasks);
-                    }
-                });
+                })
+                .subscribe(
+                        // onNext
+                        this::processTasks,
+                        // onError
+                        throwable -> mTasksView.showLoadingTasksError(),
+                        // onCompleted
+                        () -> mTasksView.setLoadingIndicator(false));
         mSubscriptions.add(subscription);
     }
 
-    private void processTasks(List<Task> tasks) {
+    private void processTasks(@NonNull List<Task> tasks) {
         if (tasks.isEmpty()) {
             // Show a message indicating there are no tasks for that filter type.
             processEmptyTasks();
@@ -227,7 +230,7 @@ public class TasksPresenter implements TasksContract.Presenter {
      *                    {@link TasksFilterType#ACTIVE_TASKS}
      */
     @Override
-    public void setFiltering(TasksFilterType requestType) {
+    public void setFiltering(@NonNull TasksFilterType requestType) {
         mCurrentFiltering = requestType;
     }
 

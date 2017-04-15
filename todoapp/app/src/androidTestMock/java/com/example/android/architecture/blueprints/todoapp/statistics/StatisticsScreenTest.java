@@ -16,14 +16,21 @@
 
 package com.example.android.architecture.blueprints.todoapp.statistics;
 
+import static android.support.test.espresso.Espresso.onView;
+import static android.support.test.espresso.assertion.ViewAssertions.matches;
+import static android.support.test.espresso.matcher.ViewMatchers.isDisplayed;
+import static android.support.test.espresso.matcher.ViewMatchers.withText;
+
+import static org.hamcrest.Matchers.containsString;
+
 import android.content.Intent;
 import android.support.test.InstrumentationRegistry;
 import android.support.test.rule.ActivityTestRule;
 import android.support.test.runner.AndroidJUnit4;
 import android.test.suitebuilder.annotation.LargeTest;
 
+import com.example.android.architecture.blueprints.todoapp.Injection;
 import com.example.android.architecture.blueprints.todoapp.R;
-import com.example.android.architecture.blueprints.todoapp.data.FakeTasksRemoteDataSource;
 import com.example.android.architecture.blueprints.todoapp.data.Task;
 import com.example.android.architecture.blueprints.todoapp.data.source.TasksRepository;
 import com.example.android.architecture.blueprints.todoapp.taskdetail.TaskDetailActivity;
@@ -32,12 +39,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
-import static android.support.test.espresso.Espresso.onView;
-import static android.support.test.espresso.assertion.ViewAssertions.matches;
-import static android.support.test.espresso.matcher.ViewMatchers.isDisplayed;
-import static android.support.test.espresso.matcher.ViewMatchers.withText;
-import static org.hamcrest.Matchers.containsString;
 
 /**
  * Tests for the statistics screen.
@@ -70,10 +71,11 @@ public class StatisticsScreenTest {
     public void intentWithStubbedTaskId() {
         // Given some tasks
         TasksRepository.destroyInstance();
-        FakeTasksRemoteDataSource.getInstance().addTasks(new Task("Title1", "", false));
-        FakeTasksRemoteDataSource.getInstance().addTasks(new Task("Title2", "", true));
+        TasksRepository repository = Injection.provideTasksRepository(InstrumentationRegistry.getContext());
+        repository.saveTask(new Task("Title1", "", false));
+        repository.saveTask(new Task("Title2", "", true));
 
-        // Lazily subscribe the Activity from the ActivityTestRule
+        // Lazily start the Activity from the ActivityTestRule
         Intent startIntent = new Intent();
         mStatisticsActivityTestRule.launchActivity(startIntent);
     }

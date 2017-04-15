@@ -16,8 +16,6 @@
 
 package com.example.android.architecture.blueprints.todoapp.taskdetail;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
@@ -39,15 +37,20 @@ import android.widget.TextView;
 import com.example.android.architecture.blueprints.todoapp.R;
 import com.example.android.architecture.blueprints.todoapp.addedittask.AddEditTaskActivity;
 import com.example.android.architecture.blueprints.todoapp.addedittask.AddEditTaskFragment;
+import com.google.common.base.Preconditions;
+
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Main UI for the task detail screen.
  */
 public class TaskDetailFragment extends Fragment implements TaskDetailContract.View {
 
-    public static final String ARGUMENT_TASK_ID = "TASK_ID";
+    @NonNull
+    private static final String ARGUMENT_TASK_ID = "TASK_ID";
 
-    public static final int REQUEST_EDIT_TASK = 1;
+    @NonNull
+    private static final int REQUEST_EDIT_TASK = 1;
 
     private TaskDetailContract.Presenter mPresenter;
 
@@ -57,7 +60,7 @@ public class TaskDetailFragment extends Fragment implements TaskDetailContract.V
 
     private CheckBox mDetailCompleteStatus;
 
-    public static TaskDetailFragment newInstance(String taskId) {
+    public static TaskDetailFragment newInstance(@Nullable String taskId) {
         Bundle arguments = new Bundle();
         arguments.putString(ARGUMENT_TASK_ID, taskId);
         TaskDetailFragment fragment = new TaskDetailFragment();
@@ -91,12 +94,7 @@ public class TaskDetailFragment extends Fragment implements TaskDetailContract.V
         FloatingActionButton fab =
                 (FloatingActionButton) getActivity().findViewById(R.id.fab_edit_task);
 
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                mPresenter.editTask();
-            }
-        });
+        fab.setOnClickListener(__ -> mPresenter.editTask());
 
         return root;
     }
@@ -141,29 +139,28 @@ public class TaskDetailFragment extends Fragment implements TaskDetailContract.V
     }
 
     @Override
-    public void showDescription(String description) {
+    public void showDescription(@NonNull String description) {
         mDetailDescription.setVisibility(View.VISIBLE);
         mDetailDescription.setText(description);
     }
 
     @Override
     public void showCompletionStatus(final boolean complete) {
+        Preconditions.checkNotNull(mDetailCompleteStatus);
+
         mDetailCompleteStatus.setChecked(complete);
         mDetailCompleteStatus.setOnCheckedChangeListener(
-                new CompoundButton.OnCheckedChangeListener() {
-                    @Override
-                    public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                        if (isChecked) {
-                            mPresenter.completeTask();
-                        } else {
-                            mPresenter.activateTask();
-                        }
+                (buttonView, isChecked) -> {
+                    if (isChecked) {
+                        mPresenter.completeTask();
+                    } else {
+                        mPresenter.activateTask();
                     }
                 });
     }
 
     @Override
-    public void showEditTask(String taskId) {
+    public void showEditTask(@NonNull String taskId) {
         Intent intent = new Intent(getContext(), AddEditTaskActivity.class);
         intent.putExtra(AddEditTaskFragment.ARGUMENT_EDIT_TASK_ID, taskId);
         startActivityForResult(intent, REQUEST_EDIT_TASK);
@@ -198,7 +195,7 @@ public class TaskDetailFragment extends Fragment implements TaskDetailContract.V
     }
 
     @Override
-    public void showTitle(String title) {
+    public void showTitle(@NonNull String title) {
         mDetailTitle.setVisibility(View.VISIBLE);
         mDetailTitle.setText(title);
     }
@@ -213,4 +210,5 @@ public class TaskDetailFragment extends Fragment implements TaskDetailContract.V
     public boolean isActive() {
         return isAdded();
     }
+
 }

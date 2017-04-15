@@ -45,14 +45,8 @@ public class AddEditTaskFragment extends Fragment implements AddEditTaskContract
 
     private TextView mDescription;
 
-    private String mEditedTaskId;
-
     public static AddEditTaskFragment newInstance() {
         return new AddEditTaskFragment();
-    }
-
-    public AddEditTaskFragment() {
-        // Required empty public constructor
     }
 
     @Override
@@ -76,26 +70,11 @@ public class AddEditTaskFragment extends Fragment implements AddEditTaskContract
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
 
-        setTaskIdIfAny();
-
         FloatingActionButton fab =
                 (FloatingActionButton) getActivity().findViewById(R.id.fab_edit_task_done);
         fab.setImageResource(R.drawable.ic_done);
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (isNewTask()) {
-                    mPresenter.createTask(
-                            mTitle.getText().toString(),
-                            mDescription.getText().toString());
-                } else {
-                    mPresenter.updateTask(
-                            mTitle.getText().toString(),
-                            mDescription.getText().toString());
-                }
-
-            }
-        });
+        fab.setOnClickListener(__ -> mPresenter.saveTask(mTitle.getText().toString(),
+                mDescription.getText().toString()));
     }
 
     @Nullable
@@ -105,9 +84,7 @@ public class AddEditTaskFragment extends Fragment implements AddEditTaskContract
         View root = inflater.inflate(R.layout.addtask_frag, container, false);
         mTitle = (TextView) root.findViewById(R.id.add_task_title);
         mDescription = (TextView) root.findViewById(R.id.add_task_description);
-
         setHasOptionsMenu(true);
-        setRetainInstance(true);
         return root;
     }
 
@@ -135,15 +112,5 @@ public class AddEditTaskFragment extends Fragment implements AddEditTaskContract
     @Override
     public boolean isActive() {
         return isAdded();
-    }
-
-    private void setTaskIdIfAny() {
-        if (getArguments() != null && getArguments().containsKey(ARGUMENT_EDIT_TASK_ID)) {
-            mEditedTaskId = getArguments().getString(ARGUMENT_EDIT_TASK_ID);
-        }
-    }
-
-    private boolean isNewTask() {
-        return mEditedTaskId == null;
     }
 }

@@ -1,109 +1,119 @@
-# TODO-MVP
+# TODO-MVP-RXJAVA
+
+Project owners: [Erik Hellman](https://github.com/erikhellman) & [Florina Muntenescu (upday)](https://github.com/florina-muntenescu)
 
 ### Summary
 
-This sample is the base for many of the variants. It showcases a simple
-implementation of the Model-View-Presenter pattern with no architectural
-frameworks. It uses manual dependency injection to provide a repository with
-local and remote data sources. Asynchronous tasks are handled with callbacks.
+This sample is based on the TODO-MVP project and uses RxJava for communication between the data model and presenter layers.
 
-<img src="https://github.com/googlesamples/android-architecture/wiki/images/mvp.png" alt="Diagram"/>
+Compared to the TODO-MVP, both the Presenter contracts and the implementation of the Views stay the same. The changes are done to the data model layer and in the implementation of the Presenters. For the sake of simplicity we decided to keep the RxJava usage minimal, leaving optimizations like RxJava caching aside.
 
-Note: in a MVP context, the term "view" is overloaded:
+The data model layer exposes RxJava ``Observable`` streams as a way of retrieving tasks. The ``TasksDataSource`` interface contains methods like:
 
-  * The class android.view.View will be referred to as "Android View"
-  * The view that receives commands from a presenter in MVP, will be simply called
-"view".
+```java
+Observable<List<Task>> getTasks();
 
-### Fragments
+Observable<Task> getTask(@NonNull String taskId);
+```
 
-It uses fragments for two reasons:
+This is implemented in ``TasksLocalDataSource`` with the help of [SqlBrite](https://github.com/square/sqlbrite). The result of queries to the database being easily exposed as streams of data.
 
-  * The separation between Activity and Fragment fits nicely with this
-implementation of MVP: the Activity is the overall controller that creates and
-connects views and presenters.
-  * Tablet layout or screens with multiple views take advantage of the Fragments
-framework.
+```java
+@Override
+public Observable<List<Task>> getTasks() {
+    ...
+    return mDatabaseHelper.createQuery(TaskEntry.TABLE_NAME, sql)
+            .mapToList(mTaskMapperFunction);
+}
+```
 
-### Key concepts
+The ``TasksRepository`` combines the streams of data from the local and the remote data sources, exposing it to whoever needs it. In our project, the Presenters and the unit tests are actually the consumers of these ``Observable``s.
 
-There are four features in the app:
+The Presenters subscribe to the ``Observable``s from the ``TasksRepository`` and after manipulating the data, they are the ones that decide what the views should display, in the ``.subscribe(...)`` method. Also, the Presenters are the ones that decide on the working threads. For example, in the ``StatisticsPresenter``, we decide on which thread we should do the computation of the active and completed tasks and what should happen when this computation is done: show the statistics, if all is ok; show loading statistics error, if needed; and telling the view that the loading indicator should not be visible anymore.
 
-  * <code>Tasks</code>
-  * <code>TaskDetail</code>
-  * <code>AddEditTask</code>
-  * <code>Statistics</code>
+```java
+...
+Subscription subscription = Observable
+        .zip(completedTasks, activeTasks, new Func2<Integer, Integer, Pair<Integer, Integer>>() {
+            @Override
+            public Pair<Integer, Integer> call(Integer completed, Integer active) {
+                return Pair.create(active, completed);
+            }
+        })
+        .subscribeOn(mSchedulerProvider.computation())
+        .observeOn(mSchedulerProvider.ui())
+        .subscribe(new Action1<Pair<Integer, Integer>>() {
+            @Override
+            public void call(Pair<Integer, Integer> stats) {
+                mStatisticsView.showStatistics(stats.first, stats.second);
+            }
+        }, new Action1<Throwable>() {
+            @Override
+            public void call(Throwable throwable) {
+                mStatisticsView.showLoadingStatisticsError();
+            }
+        }, new Action0() {
+            @Override
+            public void call() {
+                mStatisticsView.setProgressIndicator(false);
+            }
+        });
+```
 
-Each feature has:
-
-  * A contract defining the view and the presenter
-  * An Activity which is responsible for the creation of fragments and presenters
-  * A Fragment which implements the view interface. 
-  * A presenter which implements the presenter interface
-
-In general, the business logic lives in the presenter and relies on the view to
-do the Android UI work. 
-
-The view contains almost no logic: it converts the presenter's commands to UI
-actions and listens to user actions, which are passed to the presenter. 
-
-Contracts are interfaces used to define the connection between views and
-presenters.
+Handling of the working threads is done with the help of RxJava's `Scheduler`s. For example, the creation of the database together with all the database queries is happening on the IO thread. The `subscribeOn` and `observeOn` methods are used in the Presenter classes to define that the `Observer`s will operate on the computation thread and that the observing is on the main thread.
 
 ### Dependencies
 
-  * Common Android support libraries (<code>com.android.support.\*)</code>
-  * Android Testing Support Library (Espresso, AndroidJUnitRunner…)
-  * Mockito
-  * Guava (null checking)
+* [RxJava](https://github.com/ReactiveX/RxJava)
+* [RxAndroid](https://github.com/ReactiveX/RxAndroid)
+* [SqlBrite](https://github.com/square/sqlbrite)
+
+### Java 8 Compatibility
+
+This project uses [lambda expressions](https://docs.oracle.com/javase/tutorial/java/javaOO/lambdaexpressions.html) extensively, one of the features of [Java 8](https://developer.android.com/guide/platform/j8-jack.html). To check out how the translation to lambdas was made, check out [this commit](https://github.com/googlesamples/android-architecture/pull/240/commits/929f63e3657be8705679c46c75e2625dc44a5b28), where lambdas and the Jack compiler were enabled.
 
 ## Features
 
 ### Complexity - understandability
 
-#### Use of architectural frameworks/libraries/tools: 
+#### Use of architectural frameworks/libraries/tools:
 
-None 
+Building an app with RxJava is not trivial as it uses new concepts.
 
-#### Conceptual complexity 
+#### Conceptual complexity
 
-Low, as it's a pure MVP implementation for Android
+Developers need to be familiar with RxJava, which is not trivial.
 
 ### Testability
 
 #### Unit testing
 
-High, presenters are unit tested as well as repositories and data sources.
+Very High. Given that the RxJava ``Observable``s are highly unit testable, unit tests are easy to implement.
 
 #### UI testing
 
-High, injection of fake modules allow for testing with fake data
+Similar with TODO-MVP
 
 ### Code metrics
 
-Compared to a traditional project with no architecture in place, this sample
-introduces additional classes and interfaces: presenters, a repository,
-contracts, etc. So lines of code and number of classes are higher in MVP.
-
+Compared to TODO-MVP, new classes were added for handing the ``Schedulers`` that provide the working threads.
 
 ```
 -------------------------------------------------------------------------------
 Language                     files          blank        comment           code
 -------------------------------------------------------------------------------
-Java                            46           1075           1451           3451
+Java                            49           1110           1413           3740 (3450 in MVP)
 XML                             34             97            337            601
 -------------------------------------------------------------------------------
-SUM:                            80           1172           1788           4052
--------------------------------------------------------------------------------
+SUM:                            83           1207           1750           4341
+
 ```
 ### Maintainability
 
 #### Ease of amending or adding a feature
 
-High. 
+High.
 
 #### Learning cost
 
-Low. Features are easy to find and the responsibilities are clear. Developers
-don't need to be familiar with any external dependency to work on the project.
-
+Medium as RxJava is not trivial.

@@ -16,29 +16,32 @@
 
 package com.example.android.architecture.blueprints.todoapp.taskdetail;
 
-import android.app.Activity;
-import android.content.Intent;
-import android.support.test.rule.ActivityTestRule;
-import android.support.test.runner.AndroidJUnit4;
-import android.test.suitebuilder.annotation.LargeTest;
-
-import com.example.android.architecture.blueprints.todoapp.R;
-import com.example.android.architecture.blueprints.todoapp.TestUtils;
-import com.example.android.architecture.blueprints.todoapp.data.FakeTasksRemoteDataSource;
-import com.example.android.architecture.blueprints.todoapp.data.Task;
-import com.example.android.architecture.blueprints.todoapp.data.source.TasksRepository;
-
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
 import static android.support.test.espresso.Espresso.onView;
 import static android.support.test.espresso.assertion.ViewAssertions.matches;
 import static android.support.test.espresso.matcher.ViewMatchers.isChecked;
 import static android.support.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static android.support.test.espresso.matcher.ViewMatchers.withId;
 import static android.support.test.espresso.matcher.ViewMatchers.withText;
+
 import static org.hamcrest.core.IsNot.not;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.support.test.InstrumentationRegistry;
+import android.support.test.rule.ActivityTestRule;
+import android.support.test.runner.AndroidJUnit4;
+import android.test.suitebuilder.annotation.LargeTest;
+
+import com.example.android.architecture.blueprints.todoapp.Injection;
+import com.example.android.architecture.blueprints.todoapp.R;
+import com.example.android.architecture.blueprints.todoapp.TestUtils;
+import com.example.android.architecture.blueprints.todoapp.data.Task;
+import com.example.android.architecture.blueprints.todoapp.data.source.TasksRepository;
+import com.example.android.architecture.blueprints.todoapp.data.source.local.TasksLocalDataSource;
+
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 /**
  * Tests for the tasks screen, the main screen which contains a list of all tasks.
@@ -69,9 +72,9 @@ public class TaskDetailScreenTest {
      * blocks of Junit tests.
      *
      * <p>
-     * Sometimes an {@link Activity} requires a custom subscribe {@link Intent} to receive data
-     * from the source Activity. ActivityTestRule has a feature which let's you lazily subscribe the
-     * Activity under test, so you can control the Intent that is used to subscribe the target Activity.
+     * Sometimes an {@link Activity} requires a custom start {@link Intent} to receive data
+     * from the source Activity. ActivityTestRule has a feature which let's you lazily start the
+     * Activity under test, so you can control the Intent that is used to start the target Activity.
      */
     @Rule
     public ActivityTestRule<TaskDetailActivity> mTaskDetailActivityTestRule =
@@ -98,9 +101,10 @@ public class TaskDetailScreenTest {
     private void startActivityWithWithStubbedTask(Task task) {
         // Add a task stub to the fake service api layer.
         TasksRepository.destroyInstance();
-        FakeTasksRemoteDataSource.getInstance().addTasks(task);
+        TasksLocalDataSource.destroyInstance();
+        Injection.provideTasksRepository(InstrumentationRegistry.getTargetContext()).saveTask(task);
 
-        // Lazily subscribe the Activity from the ActivityTestRule this time to inject the subscribe Intent
+        // Lazily start the Activity from the ActivityTestRule this time to inject the start Intent
         Intent startIntent = new Intent();
         startIntent.putExtra(TaskDetailActivity.EXTRA_TASK_ID, task.getId());
         mTaskDetailActivityTestRule.launchActivity(startIntent);
@@ -130,10 +134,14 @@ public class TaskDetailScreenTest {
     public void orientationChange_menuAndTaskPersist() {
         loadActiveTask();
 
+        // Check that the task is shown
+        onView(withId(R.id.task_detail_title)).check(matches(withText(TASK_TITLE)));
+        onView(withId(R.id.task_detail_description)).check(matches(withText(TASK_DESCRIPTION)));
+
         // Check delete menu item is displayed and is unique
         onView(withId(R.id.menu_delete)).check(matches(isDisplayed()));
 
-        TestUtils.rotateOrientation(mTaskDetailActivityTestRule);
+        TestUtils.rotateOrientation(mTaskDetailActivityTestRule.getActivity());
 
         // Check that the task is shown
         onView(withId(R.id.task_detail_title)).check(matches(withText(TASK_TITLE)));
